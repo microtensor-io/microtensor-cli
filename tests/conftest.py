@@ -52,7 +52,7 @@ class FakeApi:
 
     def bridges(self) -> list[dict[str, Any]] | None:
         return [
-            {"tool": t, "model": m, "last_seen_at": "2026-10-16T10:00:00Z", "requests_30d": 3}
+            {"tool": t, "model": m, "last_request_at": "2026-10-16T10:00:00Z", "requests_30d": 3}
             for t, m in self.registered
         ]
 
