@@ -9,4 +9,3 @@ dist/
 .ruff_cache/
 .mypy_cache/
 .env
-*.log
