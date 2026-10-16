@@ -179,7 +179,7 @@ def status(*, api: Api | None) -> list[Row]:
                 model=state.model,
                 where=state.where,
                 snapshot=name in saved,
-                last_seen=str(server.get("last_seen_at") or ""),
+                last_seen=str(server.get("last_request_at") or ""),
                 requests=int(requests) if isinstance(requests, int) else None,
             )
         )
