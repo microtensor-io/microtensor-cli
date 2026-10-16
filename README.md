@@ -4,13 +4,13 @@ The `mtensor` command for Microtensor customers. Its first job is **Microtensor 
 
 ## Install
 
-    uv tool install microtensor-cli
+    uv tool install git+https://github.com/microtensor-io/microtensor-cli
 
 or
 
-    pipx install microtensor-cli
+    pipx install git+https://github.com/microtensor-io/microtensor-cli
 
-Python 3.10 or newer.
+Python 3.10 or newer. A PyPI release will follow.
 
 ## Sign in
 
