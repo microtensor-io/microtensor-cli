@@ -76,20 +76,24 @@ def models(args: argparse.Namespace) -> int:
     if args.json:
         say(json.dumps([asdict(m) for m in found], indent=2))
         return 0
-    rows = [["MODEL", "KIND", "CONTEXT", "TOOLS", "PRICE PER 1M (IN/OUT)", "SERVED NOW"]]
+    per_request = any(m.per_request for m in found)
+    heading = "PRICE" if per_request else "PRICE PER 1M (IN/OUT)"
+    rows = [["MODEL", "KIND", "CONTEXT", "TOOLS", heading, "SERVED NOW"]]
     for m in found:
-        price = (
-            f"${m.usd_in_per_mtok:g} / ${m.usd_out_per_mtok:g}"
-            if m.usd_in_per_mtok is not None and m.usd_out_per_mtok is not None
-            else "-"
-        )
+        prices = []
+        tokens = m.token_prices
+        if tokens is not None:
+            unit = " per 1M (in/out)" if per_request else ""
+            prices.append(f"${tokens[0]:g} / ${tokens[1]:g}{unit}")
+        if m.per_request:
+            prices.append(m.per_request)
         rows.append(
             [
                 m.id,
                 m.kind,
                 context_label(m.context) if m.context else "-",
                 "yes" if m.tool_calling else "no",
-                price,
+                ", ".join(prices) or "-",
                 "yes" if m.live else "no",
             ]
         )

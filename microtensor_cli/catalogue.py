@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +14,12 @@ DEFAULT_OUTPUT = 8_192
 
 
 @dataclass(frozen=True, slots=True)
+class Band:
+    input_tokens_below: int | None
+    usd_per_request: float
+
+
+@dataclass(frozen=True, slots=True)
 class Model:
     id: str
     kind: str
@@ -23,6 +30,8 @@ class Model:
     vision: bool
     usd_in_per_mtok: float | None
     usd_out_per_mtok: float | None
+    usd_per_request: float | None
+    schedule: tuple[Band, ...]
     live: bool
 
     @property
@@ -33,6 +42,24 @@ class Model:
     def label(self) -> str:
         return self.title or self.id
 
+    @property
+    def per_request(self) -> str:
+        found = [band.usd_per_request for band in self.schedule]
+        if not found and self.usd_per_request is not None and self.usd_per_request > 0:
+            found = [self.usd_per_request]
+        if not found:
+            return ""
+        low, high = f"${min(found):g}", f"${max(found):g}"
+        return f"{low} per request" if low == high else f"{low} to {high} per request"
+
+    @property
+    def token_prices(self) -> tuple[float, float] | None:
+        if self.schedule or self.usd_in_per_mtok is None or self.usd_out_per_mtok is None:
+            return None
+        if self.per_request and self.usd_in_per_mtok <= 0 and self.usd_out_per_mtok <= 0:
+            return None
+        return self.usd_in_per_mtok, self.usd_out_per_mtok
+
     def describe(self) -> str:
         parts = ["General model" if self.general else "Certified specialist"]
         if self.context:
@@ -41,10 +68,11 @@ class Model:
             parts.append("tools")
         if self.vision:
             parts.append("images")
-        if self.usd_in_per_mtok is not None and self.usd_out_per_mtok is not None:
-            parts.append(
-                f"${self.usd_in_per_mtok:g} in, ${self.usd_out_per_mtok:g} out per 1M tokens"
-            )
+        tokens = self.token_prices
+        if tokens is not None:
+            parts.append(f"${tokens[0]:g} in, ${tokens[1]:g} out per 1M tokens")
+        if self.per_request:
+            parts.append(self.per_request)
         if not self.live:
             parts.append("not served right now")
         return ", ".join(parts)
@@ -65,8 +93,31 @@ def _number(value: Any) -> float | None:
         return None
 
 
+def _finite(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        found = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return found if math.isfinite(found) else None
+
+
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _schedule(value: Any) -> tuple[Band, ...]:
+    found: list[Band] = []
+    for band in value if isinstance(value, list) else []:
+        if not isinstance(band, Mapping):
+            continue
+        price = _finite(band.get("usd_per_request"))
+        if price is None or price <= 0:
+            continue
+        below = _finite(band.get("input_tokens_below"))
+        found.append(Band(int(below) if below is not None and below >= 1 else None, price))
+    return tuple(found)
 
 
 def parse(entry: Mapping[str, Any]) -> Model:
@@ -85,6 +136,8 @@ def parse(entry: Mapping[str, Any]) -> Model:
         vision="image" in modalities,
         usd_in_per_mtok=_number(prices.get("usd_in_per_mtok")),
         usd_out_per_mtok=_number(prices.get("usd_out_per_mtok")),
+        usd_per_request=_finite(prices.get("usd_per_request")),
+        schedule=_schedule(prices.get("schedule")),
         live=bool(capacity.get("live", False)),
     )
 
@@ -115,6 +168,8 @@ def auto_model(models: Sequence[Model]) -> Model:
         vision=any(m.vision for m in found),
         usd_in_per_mtok=None,
         usd_out_per_mtok=None,
+        usd_per_request=None,
+        schedule=(),
         live=any(m.live for m in found),
     )
 
